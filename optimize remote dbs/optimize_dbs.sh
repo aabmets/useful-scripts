@@ -163,3 +163,5 @@ echo "    ${array[1]} seconds"
 echo "    ${array[2]:0:2} milliseconds"
 echo
 echo "========================== FINISHED =========================="
+
+exit 0
