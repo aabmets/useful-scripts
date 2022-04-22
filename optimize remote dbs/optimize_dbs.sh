@@ -152,15 +152,11 @@ echo
 start_time=$(date -u +"%s.%N")
 parallel optimize_dbs {} ::: "$remote_path" ::: "$remote_file" ::: "${*}" :::: "$PWD/$hosts_file"
 end_time=$(date -u +"%s.%N")
-
-diff=$(date -u -d "0 $end_time sec - $start_time sec" +"%M:%S:%N")
-IFS=':' read -r -a array <<< "$diff"
+diff=$(date -u -d "0 $end_time sec - $start_time sec" +"%M min : %S sec")
 
 echo
 echo "Total time taken by remote hosts:"
-echo "    ${array[0]} minutes"
-echo "    ${array[1]} seconds"
-echo "    ${array[2]:0:2} milliseconds"
+echo "    $diff"
 echo
 echo "========================== FINISHED =========================="
 
