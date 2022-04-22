@@ -20,16 +20,16 @@ REMOTE_DEPS=("python3" "python-is-python3")
 
 
 # ================================================================================ #
-title()
+echo_title()
 {
   echo "$SCRIPT_SEP"
   echo "$SCRIPT_NAME"
 }
 
 # -------------------------------------------------------------------------------- #
-help()
+echo_help()
 {
-  title
+  echo_title
   echo
   echo "This script reads the list of remote database hosts from the"
   echo "adjacent 'hosts.ini' file and tries to transfer the adjacent"
@@ -53,9 +53,9 @@ help()
 }
 
 # -------------------------------------------------------------------------------- #
-dependencies()
+echo_deps()
 {
-  title
+  echo_title
   echo
   echo "Local dependencies:"
   for dep in ${LOCAL_DEPS[*]}; do
@@ -70,16 +70,16 @@ dependencies()
 }
 
 # -------------------------------------------------------------------------------- #
-version()
+echo_version()
 {
-  title
+  echo_title
   echo
   echo "Version: $SCRIPT_VERSION"
   echo
 }
 
 # -------------------------------------------------------------------------------- #
-usage()
+echo_usage()
 {
   echo "Run this script with the '-h' option to display the usage guide."
   echo
@@ -91,7 +91,7 @@ usage()
 
 if [[ "$*" == "" ]]; then
   echo "ERROR! This script cannot be executed without arguments or database names!"
-  usage && exit 1
+  echo_usage && exit 1
 fi
 
 while getopts ":nDVh" option; do
@@ -99,17 +99,17 @@ while getopts ":nDVh" option; do
     n)
       if [[ $# -eq 1 ]]; then
         echo "ERROR! This script cannot be executed in dry run mode without database names!"
-        usage && exit 1
+        echo_usage && exit 1
       fi ;;
     D)
-      dependencies && exit 0 ;;
+      echo_deps && exit 0 ;;
     V)
-      version && exit 0 ;;
+      echo_version && exit 0 ;;
     h)
-      help && exit 0 ;;
+      echo_help && exit 0 ;;
     *)
       echo "ERROR! This script does not accept the option '-$OPTARG'."
-      usage && exit 1
+      echo_usage && exit 1
       ;;
   esac
 done
