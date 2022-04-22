@@ -107,8 +107,7 @@ while getopts ":nDVh" option; do
       echo_help && exit 0 ;;
     *)
       echo "ERROR! This script does not accept the option '-$OPTARG'."
-      echo_usage && exit 1
-      ;;
+      echo_usage && exit 1 ;;
   esac
 done
 
