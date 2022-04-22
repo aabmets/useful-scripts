@@ -12,8 +12,6 @@ remote_path="/users/admin/scripts/"
 # -------------------------------------------------------------------------------- #
 #  Define constants.
 
-SCRIPT_SEP="--------------------------------"
-SCRIPT_NAME="OPTIMIZE REMOTE DATABASES SCRIPT"
 SCRIPT_VERSION="1.0.0"
 LOCAL_DEPS=("putty" "putty-tools")
 REMOTE_DEPS=("python3" "python-is-python3")
@@ -22,8 +20,8 @@ REMOTE_DEPS=("python3" "python-is-python3")
 # ================================================================================ #
 echo_title()
 {
-  echo "$SCRIPT_SEP"
-  echo "$SCRIPT_NAME"
+  echo "--------------------------------"
+  echo "OPTIMIZE REMOTE DATABASES SCRIPT"
 }
 
 # -------------------------------------------------------------------------------- #
@@ -90,7 +88,7 @@ echo_usage()
 #  Parse and evaluate the args.
 
 if [[ "$*" == "" ]]; then
-  echo "ERROR! This script cannot be executed without arguments or database names!"
+  echo "ERROR! This script cannot be executed without any arguments!"
   echo_usage && exit 1
 fi
 
