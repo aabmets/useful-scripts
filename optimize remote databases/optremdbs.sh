@@ -24,18 +24,12 @@
 #   SOFTWARE.                                                                        #
 #                                                                                    #
 # ================================================================================== #
-#  Define settings.
+SCRIPT_VERSION="1.0.0"
+DEPENDENCIES=("putty" "putty-tools" "parallel")
 
 hosts_file="hosts.ini"
 python_file="optremdbs.py"
 remote_path="/users/admin/scripts/"
-
-
-# ---------------------------------------------------------------------------------  #
-#  Define constants.
-
-SCRIPT_VERSION="1.0.0"
-DEPENDENCIES=("putty" "putty-tools" "parallel")
 
 
 # ================================================================================== #
