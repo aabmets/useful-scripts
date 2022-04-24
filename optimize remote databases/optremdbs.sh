@@ -97,8 +97,6 @@ echo_usage()
 
 
 # ================================================================================== #
-#  Parse and evaluate the args.
-
 if [[ "$*" == "" ]]; then
   echo "ERROR! This script cannot be executed without any arguments!"
   echo_usage && exit 1
@@ -124,8 +122,6 @@ while getopts ":nDVh" option; do
 done
 
 # ---------------------------------------------------------------------------------  #
-#  Ensure all local dependencies are installed before continuing.
-
 for dep in ${LOCAL_DEPS[*]}; do
   if ! dpkg -s "$dep" &> /dev/null; then
     echo "ERROR! This script depends on the \"$dep\" package, which is missing!"
@@ -135,8 +131,6 @@ done
 
 
 # ================================================================================== #
-# 'filter_hosts' function prints hostname if it is alive.
-
 filter_hosts()
 {
   host=${1//[$'\t\r\n']}
@@ -147,9 +141,6 @@ filter_hosts()
 export -f filter_hosts
 
 # ---------------------------------------------------------------------------------  #
-#  This function sends over the python script file to the remote machine
-#  and executes it with the args provided to this script.
-
 optremdbs()
 {
   remote_cmd="python ${1}/${2} ${3} -x ${4}"
