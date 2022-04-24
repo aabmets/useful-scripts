@@ -119,8 +119,8 @@ def parse_cmdline_args() -> Namespace:
 # ---------------------------------------------------------------------------------  #
 def get_databases() -> list:
     dbs = list()
-    with mysql.connect(host=DB_SERVER_HOST, **CREDS) as conn:
-        with conn.cursor(buffered=True) as cursor:
+    with mysql.connect(host=DB_SERVER_HOST, **CREDS) as cnx:
+        with cnx.cursor(buffered=True) as cursor:
             for name in args.db_names_like:
                 cursor.execute(f'SHOW DATABASES LIKE \'{name}\'')
                 for db in cursor.fetchall():
