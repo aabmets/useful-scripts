@@ -134,7 +134,7 @@ if __name__ == '__main__':
     databases = get_databases()
     if args.dry_run:
         print(f'{args.host} - Host would try to optimize '
-              f'{len(databases)} databases.')
+              f'- {len(databases)} - databases.')
     else:
         start_time = datetime.now()
         Optimizer.init()
