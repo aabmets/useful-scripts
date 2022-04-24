@@ -27,7 +27,7 @@
 #  Define settings.
 
 hosts_file="hosts.ini"
-python_file="optimize_dbs.py"
+python_file="optremdbs.py"
 remote_path="/users/admin/scripts/"
 
 
@@ -35,8 +35,7 @@ remote_path="/users/admin/scripts/"
 #  Define constants.
 
 SCRIPT_VERSION="1.0.0"
-LOCAL_DEPS=("putty" "putty-tools" "parallel")
-REMOTE_DEPS=("python3" "python-is-python3")
+DEPENDENCIES=("putty" "putty-tools" "parallel")
 
 
 # ================================================================================== #
@@ -51,10 +50,12 @@ echo_help()
 {
   echo_title
   echo
-  echo "This script reads the list of remote database hosts from the"
+  echo "This script reads a list of remote database hosts from the"
   echo "adjacent 'hosts.ini' file and tries to transfer the adjacent"
-  echo "python script named 'optimize_dbs.py' to each remote host and"
-  echo "execute it with the args passed to this script."
+  echo "python script named 'optremdbs.py' to each remote host and"
+  echo "execute it with the args passed to this script. Remote hosts"
+  echo "can be either Windows or Linux machines. Linux hosts require"
+  echo "the 'python-is-python3' package."
   echo
   echo "Syntax: optimize_dbs.sh [-n|V|D|h] [db_like_1 ...]"
   echo
@@ -77,13 +78,8 @@ echo_deps()
 {
   echo_title
   echo
-  echo "Local dependencies:"
-  for dep in ${LOCAL_DEPS[*]}; do
-    echo "    $dep"
-  done
-  echo
-  echo "Remote dependencies:"
-    for dep in ${REMOTE_DEPS[*]}; do
+  echo "Local Dependencies:"
+  for dep in ${DEPENDENCIES[*]}; do
     echo "    $dep"
   done
   echo
@@ -145,24 +141,28 @@ done
 
 
 # ================================================================================== #
-#  The main worker function sanitizes the hostname and checks
-#  if the remote host is alive. If it is, then it sends over
-#  the python script file to the remote machine and executes
-#  it with the args provided to this script.
+# 'filter_hosts' function prints hostname if it is alive.
 
-optimize_dbs()
+filter_hosts()
 {
-  host=${4//[$'\t\r\n']}
-  remote_cmd="python ${1}/${2} ${3} -x $host}"
+  host=${1//[$'\t\r\n']}
   if ping -c 1 -W 1 "$host" &> /dev/null; then
-    echo "$host - ALIVE, executing script..."
-    pscp -l admin -pw admin "$PWD/${2}" "$host":"${1}" &> /dev/null
-    plink -no-antispoof -l admin -pw admin "$host" "$remote_cmd"
-  else
-    echo "$host - Not Responding!"
+    echo "$host"
   fi
 }
-export -f optimize_dbs
+export -f filter_hosts
+
+# ---------------------------------------------------------------------------------  #
+#  This function sends over the python script file to the remote machine
+#  and executes it with the args provided to this script.
+
+optremdbs()
+{
+  remote_cmd="python ${1}/${2} ${3} -x ${4}"
+  pscp -l admin -pw admin "$PWD/${2}" "${4}":"${1}" &> /dev/null
+  plink -ssh -no-antispoof -l admin -pw admin "${4}" "$remote_cmd"
+}
+export -f optremdbs
 
 # ---------------------------------------------------------------------------------  #
 echo "==================== OPTIMIZING DATABASES ===================="
@@ -170,15 +170,32 @@ test="                            DRY RUN                           "
 for opt in "$@"; do
   [[ "$opt" == "-n" ]] && echo "$test"
 done
+
+echo
+echo "Getting alive hosts..."
+echo
+
+hosts_alive=$(parallel --keep-order filter_hosts :::: "$PWD/$hosts_file")
+while IFS='' read -r host; do
+  host="${host//[$'\t\r\n']}"
+  if ! [[ "$hosts_alive" == *"$host"* ]]; then
+    echo "$host - Not Responding!"
+  else
+    echo "$host - ALIVE!"
+  fi
+done < "$hosts_file"
+
+echo
+echo "Running scripts on alive hosts..."
 echo
 
 start_time=$(date -u +"%s.%N")
-parallel --linebuffer optimize_dbs {} ::: "$remote_path" ::: "$python_file" ::: "${*}" :::: "$PWD/$hosts_file"
+parallel --linebuffer optremdbs ::: "$remote_path" ::: "$python_file" ::: "${*}" ::: "$hosts_alive"
 end_time=$(date -u +"%s.%N")
 diff=$(date -u -d "0 $end_time sec - $start_time sec" +"%M min : %S sec")
 
 echo
-echo "Total time taken by remote hosts:"
+echo "Remote scripts total runtime:"
 echo "    $diff"
 echo
 echo "========================== FINISHED =========================="
