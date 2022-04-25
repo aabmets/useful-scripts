@@ -28,7 +28,7 @@ SCRIPT_VERSION="1.0.0"
 DEPENDENCIES=("putty" "putty-tools" "parallel")
 
 hosts_file="hosts.ini"
-python_file="optremdbs.py"
+python_file="remote_script.py"
 remote_path="/users/admin/scripts/"
 
 

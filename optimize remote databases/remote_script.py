@@ -32,7 +32,7 @@ import mysql.connector as mysql
 
 # ================================================================================== #
 ZERO_TIME = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-MAX_WORKERS = 10
+MAX_WORKERS = 30
 CONFIG = dict(
     user='admin',
     password='admin',
@@ -51,6 +51,13 @@ class Optimizer:
     # ---------------------------------------------------------------------------------  #
     @classmethod
     def _worker(cls) -> None:
+        """
+        This method obtains database names from the workload Queue,
+        tries to optimize as many tables as it can in each database,
+        and saves the total work result into the results Queue.
+
+        :return: None
+        """
         with mysql.connect(**CONFIG) as cnx:
             with cnx.cursor(buffered=True) as cursor:
                 successes, failures = 0, 0
@@ -74,6 +81,13 @@ class Optimizer:
     # ---------------------------------------------------------------------------------- #
     @classmethod
     def init(cls) -> None:
+        """
+        This method inserts all found matching database
+        names into the workload and creates the
+        appropriate amount of worker threads.
+
+        :return: None
+        """
         for db in databases:
             cls.workload.put(db)
         while True:
@@ -89,6 +103,12 @@ class Optimizer:
     # ---------------------------------------------------------------------------------  #
     @classmethod
     def run(cls) -> None:
+        """
+        This method runs all worker threads and then
+        waits for them to finish processing.
+
+        :return: None
+        """
         for worker in cls.workers:
             worker.start()
         for worker in cls.workers:
@@ -97,6 +117,12 @@ class Optimizer:
     # ---------------------------------------------------------------------------------  #
     @classmethod
     def get_results(cls) -> dict:
+        """
+        This method adds together all results in the
+        results Queue and returns the results total.
+
+        :return: Total results of all databases
+        """
         successes, failures = 0, 0
         while bool(cls.results.queue):
             result = cls.results.get()
@@ -111,6 +137,11 @@ class Optimizer:
 
 # ================================================================================== #
 def parse_cmdline_args() -> Namespace:
+    """
+    Obtains command line args passed to this script.
+
+    :return: Namespace of args
+    """
     parser = ArgumentParser()
     parser.add_argument('db_names_like', nargs='+', default=None)
     parser.add_argument('-n', '--dry_run', action='store_true', default=False)
@@ -120,6 +151,11 @@ def parse_cmdline_args() -> Namespace:
 
 # ---------------------------------------------------------------------------------  #
 def get_databases() -> list:
+    """
+    Asks the MySQL server for database names matching the cmdline LIKE regex args.
+
+    :return: List of database names
+    """
     dbs = list()
     with mysql.connect(**CONFIG) as cnx:
         with cnx.cursor(buffered=True) as cursor:
@@ -135,6 +171,10 @@ if __name__ == '__main__':
     args = parse_cmdline_args()
     try:
         databases = get_databases()
+        #  get_databases() has to be inside the try block, because
+        #  this is the first call that would raise an exception
+        #  if the local MySQL database server should be offline.
+
         if args.dry_run:
             print(f'{args.host} - Host would try to optimize '
                   f'-{len(databases)}- databases.')
@@ -153,5 +193,6 @@ if __name__ == '__main__':
                   f'succeeded/failed. Time taken: '
                   f'{time_taken.minute} min : '
                   f'{time_taken.second} sec')
+
     except mysql.Error as err:
         print(f'{args.host} - ERROR! {err.msg}')
