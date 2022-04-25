@@ -97,11 +97,13 @@ echo_usage()
 
 
 # ================================================================================== #
+#  Halt execution if executed without args.
 if [[ "$*" == "" ]]; then
   echo "ERROR! This script cannot be executed without any arguments!"
   echo_usage && exit 1
 fi
 
+#  Parse command line arguments.
 while getopts ":nDVh" option; do
   case ${option} in
     n)
@@ -122,6 +124,7 @@ while getopts ":nDVh" option; do
 done
 
 # ---------------------------------------------------------------------------------  #
+#  Halt execution if local dependencies are not satisfied.
 for dep in ${LOCAL_DEPS[*]}; do
   if ! dpkg -s "$dep" &> /dev/null; then
     echo "ERROR! This script depends on the \"$dep\" package, which is missing!"
@@ -131,6 +134,7 @@ done
 
 
 # ================================================================================== #
+#  Returns host name only if it's alive.
 filter_hosts()
 {
   host=${1//[$'\t\r\n']}
@@ -141,6 +145,7 @@ filter_hosts()
 export -f filter_hosts
 
 # ---------------------------------------------------------------------------------  #
+#  Sends over the remote_script.py file and executes it.
 optremdbs()
 {
   remote_cmd="python ${1}/${2} ${3} --host ${4}"
@@ -159,7 +164,6 @@ done
 echo
 echo "Getting alive hosts..."
 echo
-
 hosts_alive=$(parallel --keep-order filter_hosts :::: "$PWD/$hosts_file")
 while IFS='' read -r host; do
   host="${host//[$'\t\r\n']}"
@@ -170,18 +174,24 @@ while IFS='' read -r host; do
   fi
 done < "$hosts_file"
 
-echo
-echo "Running scripts on alive hosts..."
-echo
+if [[ "$hosts_alive" != "" ]]; then
+  echo
+  echo "Running scripts on alive hosts..."
+  echo
 
-start_time=$(date -u +"%s.%N")
-parallel --linebuffer optremdbs ::: "$remote_path" ::: "$python_file" ::: "${*}" ::: "$hosts_alive"
-end_time=$(date -u +"%s.%N")
-diff=$(date -u -d "0 $end_time sec - $start_time sec" +"%M min : %S sec")
+  start_time=$(date -u +"%s.%N")
+  parallel --linebuffer optremdbs ::: "$remote_path" ::: "$python_file" ::: "${*}" ::: "$hosts_alive"
+  end_time=$(date -u +"%s.%N")
+  diff=$(date -u -d "0 $end_time sec - $start_time sec" +"%M min : %S sec")
 
-echo
-echo "Remote scripts total runtime:"
-echo "    $diff"
+  echo
+  echo "Remote scripts total runtime:"
+  echo "    $diff"
+else
+  echo
+  echo "Alive hosts not found. Quitting..."
+fi
+
 echo
 echo "========================== FINISHED =========================="
 
