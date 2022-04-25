@@ -8,7 +8,7 @@ This script was created for a potential employer as part of a job application.
 
 The 'optremdbs.sh' shell script connects to each remote host over SSH, uploads the adjacent 
 'remote_script.py' file to each host and executes it with the args provided to the shell script in the command line. 
-
+Due to the nature of the implementation of this solution, it is trivial to modify the script files to run arbitrary Python scripts on remote machines.
 
 ### Exercise Premise
 
