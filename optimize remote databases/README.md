@@ -3,7 +3,7 @@
 
 ### Description
 
-This script optimizes databases on remote database servers and is fully functional.
+This script optimizes databases on remote database servers and is fully functional.  
 This script was created for a potential employer as part of a job application. 
 
 The 'optremdbs.sh' shell script connects to each remote host over SSH, uploads the adjacent 
