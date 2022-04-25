@@ -14,7 +14,7 @@ Due to the nature of the implementation of this solution, it is trivial to modif
 
 * Create a tool to optimize database tables over multiple database servers in the network. 
 * The tool must consist of two script files, where one has to be a shell script and the other written in Python.
-* The first script is called from the central management machines command line, which in turn
+* The first script is called from the command line from the central management server, which in turn
 invokes the second script over SSH on each database server in the network.
 * The applicant is free to choose which script is written in which language.
 * The list of server host names must be read from a config file, the format of which can be freely chosen by the applicant.
