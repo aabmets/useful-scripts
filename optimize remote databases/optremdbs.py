@@ -32,11 +32,13 @@ import mysql.connector as mysql
 
 # ================================================================================== #
 ZERO_TIME = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-DB_SERVER_HOST = '127.0.0.1'
 MAX_WORKERS = 10
-CREDS = dict(
+CONFIG = dict(
     user='admin',
-    password='admin'
+    password='admin',
+    connection_timeout=1,
+    host='127.0.0.1',
+    port=3306
 )
 
 
@@ -49,7 +51,7 @@ class Optimizer:
     # ---------------------------------------------------------------------------------  #
     @classmethod
     def _worker(cls) -> None:
-        with mysql.connect(host=DB_SERVER_HOST, **CREDS) as cnx:
+        with mysql.connect(**CONFIG) as cnx:
             with cnx.cursor(buffered=True) as cursor:
                 successes, failures = 0, 0
                 while bool(cls.workload.queue):
@@ -112,14 +114,14 @@ def parse_cmdline_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument('db_names_like', nargs='+', default=None)
     parser.add_argument('-n', '--dry_run', action='store_true', default=False)
-    parser.add_argument('-x', '--host', required=True)
-    return parser.parse_args()
+    parser.add_argument('--host', required=True)
+    return parser.parse_known_args()[0]
 
 
 # ---------------------------------------------------------------------------------  #
 def get_databases() -> list:
     dbs = list()
-    with mysql.connect(host=DB_SERVER_HOST, **CREDS) as cnx:
+    with mysql.connect(**CONFIG) as cnx:
         with cnx.cursor(buffered=True) as cursor:
             for name in args.db_names_like:
                 cursor.execute(f'SHOW DATABASES LIKE \'{name}\'')
@@ -131,22 +133,25 @@ def get_databases() -> list:
 # ================================================================================== #
 if __name__ == '__main__':
     args = parse_cmdline_args()
-    databases = get_databases()
-    if args.dry_run:
-        print(f'{args.host} - Host would try to optimize '
-              f'- {len(databases)} - databases.')
-    else:
-        start_time = datetime.now()
-        Optimizer.init()
-        Optimizer.run()
-        end_time = datetime.now()
+    try:
+        databases = get_databases()
+        if args.dry_run:
+            print(f'{args.host} - Host would try to optimize '
+                  f'-{len(databases)}- databases.')
+        else:
+            start_time = datetime.now()
+            Optimizer.init()
+            Optimizer.run()
+            end_time = datetime.now()
 
-        diff = end_time - start_time
-        time_taken = ZERO_TIME + diff
+            diff = end_time - start_time
+            time_taken = ZERO_TIME + diff
 
-        results = Optimizer.get_results()
-        print(f'{args.host} - Optimization result: '
-              f'{results["sc"]}/{results["fl"]} tables '
-              f'succeeded/failed. Time taken: '
-              f'{time_taken.minute} min : '
-              f'{time_taken.second} sec')
+            results = Optimizer.get_results()
+            print(f'{args.host} - Optimization result: '
+                  f'{results["sc"]}/{results["fl"]} tables '
+                  f'succeeded/failed. Time taken: '
+                  f'{time_taken.minute} min : '
+                  f'{time_taken.second} sec')
+    except mysql.Error as err:
+        print(f'{args.host} - ERROR! {err.msg}')

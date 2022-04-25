@@ -143,7 +143,7 @@ export -f filter_hosts
 # ---------------------------------------------------------------------------------  #
 optremdbs()
 {
-  remote_cmd="python ${1}/${2} ${3} -x ${4}"
+  remote_cmd="python ${1}/${2} ${3} --host ${4}"
   pscp -l admin -pw admin "$PWD/${2}" "${4}":"${1}" &> /dev/null
   plink -ssh -no-antispoof -l admin -pw admin "${4}" "$remote_cmd"
 }
