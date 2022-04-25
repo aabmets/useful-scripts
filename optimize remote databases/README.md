@@ -50,5 +50,4 @@ are trying to acquire locks on tables which have foreign keys with each other in
 This approach causes the optimization process to take slightly longer, but it prevents having to test 
 the optimization results for Deadlock conditions and having to re-insert tables into the workload.
 
-Due to the implemented concurrency, this solution is scalable for the optimization of 
-large quantities of servers and databases in relatively short timeframes.
+Due to the implemented concurrency, this solution is scalable to large quantities of servers and databases.
