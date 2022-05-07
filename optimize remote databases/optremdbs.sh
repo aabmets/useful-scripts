@@ -62,7 +62,7 @@ echo_help()
   echo "-V     Print software version and exit."
   echo "-D     Print software dependencies and exit."
   echo "-n     Enables dry run mode, where the remote python scripts"
-  echo "       will return the names of the databases to be optimized"
+  echo "       will return the quantity of databases to be optimized"
   echo "       without running any optimization on the databases."
   echo
 }
