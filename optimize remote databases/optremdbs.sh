@@ -46,7 +46,7 @@ echo_help()
   echo
   echo "This script reads a list of remote database hosts from the"
   echo "adjacent 'hosts.ini' file and tries to transfer the adjacent"
-  echo "python script named 'optremdbs.py' to each remote host and"
+  echo "python script named 'remote_script.py' to each remote host and"
   echo "execute it with the args passed to this script. Remote hosts"
   echo "can be either Windows or Linux machines. Linux hosts require"
   echo "the 'python-is-python3' package."
