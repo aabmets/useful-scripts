@@ -45,8 +45,8 @@ class LuksEncryptor:
         self.label = label
         self.crypt_name = f"{label}_crypt"
         self.mount_point = Path(f"/mnt/{label}")
-        self.calling_user = self._get_calling_user()
-        self.user_home = Path(pwd.getpwnam(self.calling_user).pw_dir)
+        self.pwd_entry = pwd.getpwnam(self._get_calling_user())
+        self.user_home = Path(self.pwd_entry.pw_dir)
         self.symlink_path = self.user_home / label
         self.service_name = f"{label}-crypt.service"
         self.pass_phrase: str | None = None
@@ -165,8 +165,8 @@ class LuksEncryptor:
         self.backup_path.chmod(0o600)
         os.chown(
             path=self.backup_path.as_posix(),
-            uid=pwd.getpwnam(self.calling_user).pw_uid,
-            gid=pwd.getpwnam(self.calling_user).pw_gid
+            uid=self.pwd_entry.pw_uid,
+            gid=self.pwd_entry.pw_gid
         )
 
     def open_container(self, use_keyfile: bool = False) -> None:
@@ -216,8 +216,8 @@ class LuksEncryptor:
         subprocess.run(["mount", f"/dev/mapper/{self.crypt_name}", str(self.mount_point)], check=True)
         os.chown(
             path=self.mount_point.as_posix(),
-            uid=pwd.getpwnam(self.calling_user).pw_uid,
-            gid=pwd.getpwnam(self.calling_user).pw_gid
+            uid=self.pwd_entry.pw_uid,
+            gid=self.pwd_entry.pw_gid
         )
         self.mount_point.chmod(0o755)
 
