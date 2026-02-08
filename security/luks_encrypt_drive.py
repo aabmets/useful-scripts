@@ -147,11 +147,8 @@ class LuksEncryptor:
 
     def format_luks(self) -> None:
         logger.info("Formatting with LUKS2...")
-        subprocess.run(
-            ["cryptsetup", "luksFormat", "--type", "luks2", "--batch-mode", str(self.device_path)],
-            input=(self.pass_phrase + "\n").encode(),
-            check=True,
-        )
+        args = ["cryptsetup", "luksFormat", "--type", "luks2", "--batch-mode", self.device_path.as_posix()]
+        subprocess.run(args, input=(self.pass_phrase + "\n").encode(), check=True)
 
     def backup_luks_header(self) -> None:
         backups_dir = self.user_home / "backups"
@@ -160,10 +157,11 @@ class LuksEncryptor:
         self.backup_path = backups_dir / f"{self.label}-luks-header-{date_str}.bak"
 
         logger.info(f"Backing up LUKS header to: {self.backup_path}")
-        subprocess.run(
-            ["cryptsetup", "luksHeaderBackup", str(self.device_path), "--header-backup-file", str(self.backup_path)],
-            check=True,
-        )
+        args = [
+            "cryptsetup", "luksHeaderBackup", self.device_path.as_posix(),
+            "--header-backup-file", self.backup_path.as_posix()
+        ]
+        subprocess.run(args, check=True)
         self.backup_path.chmod(0o600)
         os.chown(
             path=self.backup_path.as_posix(),
@@ -196,7 +194,8 @@ class LuksEncryptor:
 
     def create_filesystem(self) -> None:
         logger.info(f"Creating ext4 filesystem with label '{self.label}'...")
-        subprocess.run(["mkfs.ext4", "-L", self.label, f"/dev/mapper/{self.crypt_name}"], check=True)
+        args = ["mkfs.ext4", "-L", self.label, f"/dev/mapper/{self.crypt_name}"]
+        subprocess.run(args, check=True)
 
     def create_keyfile(self) -> None:
         self.key_file = Path("/etc/luks-keys") / f"{self.label}.key"
@@ -208,11 +207,8 @@ class LuksEncryptor:
 
     def add_keyfile_to_luks(self) -> None:
         logger.info("Adding keyfile as additional unlock slot...")
-        subprocess.run(
-            ["cryptsetup", "luksAddKey", str(self.device_path), str(self.key_file)],
-            input=(self.pass_phrase + "\n").encode(),
-            check=True,
-        )
+        args = ["cryptsetup", "luksAddKey", self.device_path.as_posix(), self.key_file.as_posix()]
+        subprocess.run(args, input=(self.pass_phrase + "\n").encode(), check=True)
 
     def setup_mount_and_symlink(self) -> None:
         logger.info("Mounting filesystem and creating symlink...")
