@@ -36,6 +36,7 @@ __all__ = ["LuksEncryptor", "main"]
 
 
 logger = logging.getLogger("LUKS-ENCRYPT-DRIVE")
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 class LuksEncryptor:
@@ -48,12 +49,9 @@ class LuksEncryptor:
         self.user_home = Path(pwd.getpwnam(self.calling_user).pw_dir)
         self.symlink_path = self.user_home / label
         self.service_name = f"{label}-crypt.service"
-        self.script_file = Path("/etc/luks-scripts") / f"{self.service_name}.sh"
-        self.key_file = Path("/etc/luks-keys") / f"{label}.key"
-        self.script_file.parent.mkdir(parents=True, exist_ok=True)
-        self.key_file.parent.mkdir(parents=True, exist_ok=True)
         self.pass_phrase: str | None = None
         self.backup_path: Path | None = None
+        self.key_file: Path | None = None
 
         self._validate_label_safety()
         self._validate_device_safety()
@@ -98,6 +96,15 @@ class LuksEncryptor:
             except OSError:
                 pass
 
+        try:
+            subprocess.check_output(
+                ["cryptsetup", "isLuks", self.device_path.as_posix()],
+                stderr=subprocess.DEVNULL
+            )
+            raise SystemExit(f"ERROR: {self.device_path} is already a LUKS container.")
+        except subprocess.CalledProcessError:
+            pass  # not LUKS → good
+
         logger.info(f"Device check passed: {self.device_path} is safe to encrypt.")
 
     def _is_container_open(self) -> bool:
@@ -119,6 +126,25 @@ class LuksEncryptor:
             logger.info("Aborted.")
             raise SystemExit(0)
 
+    def unmount_drive(self) -> None:
+        logger.info(f"Checking for active mounts on {self.device_path}...")
+        try:
+            # -p: full paths, -n: no headings, -l: list format, -o: specify columns
+            args = ["lsblk", "-p", "-n", "-l", "-o", "MOUNTPOINT", self.device_path.as_posix()]
+            output = subprocess.check_output(args, text=True).strip()
+
+            if mount_points := [mp for mp in output.split('\n') if mp.strip()]:
+                logger.info(f"Found {len(mount_points)} active mount(s). Unmounting now...")
+                for mp in mount_points:
+                    logger.info(f"Unmounting: {mp}")
+                    subprocess.run(["umount", "-l", mp], check=True)
+                logger.info("All associated mounts removed.")
+            else:
+                logger.info("No active mounts found on device.")
+
+        except subprocess.CalledProcessError:
+            raise SystemExit("ERROR: Failed to verify mount status with lsblk. Aborting.")
+
     def format_luks(self) -> None:
         logger.info("Formatting with LUKS2...")
         subprocess.run(
@@ -138,9 +164,9 @@ class LuksEncryptor:
             ["cryptsetup", "luksHeaderBackup", str(self.device_path), "--header-backup-file", str(self.backup_path)],
             check=True,
         )
-        self.backup_path.chmod(0o644)
+        self.backup_path.chmod(0o600)
         os.chown(
-            path=str(self.backup_path),
+            path=self.backup_path.as_posix(),
             uid=pwd.getpwnam(self.calling_user).pw_uid,
             gid=pwd.getpwnam(self.calling_user).pw_gid
         )
@@ -161,7 +187,7 @@ class LuksEncryptor:
 
         cmd = ["cryptsetup", "luksOpen", str(self.device_path), self.crypt_name]
         if use_keyfile:
-            cmd.extend(["--key-file", str(self.key_file)])
+            cmd.extend(["--key-file", self.key_file.as_posix()])
             logger.info(f"Opening container {self.crypt_name} with keyfile...")
             subprocess.run(cmd, check=True)
         else:
@@ -173,11 +199,11 @@ class LuksEncryptor:
         subprocess.run(["mkfs.ext4", "-L", self.label, f"/dev/mapper/{self.crypt_name}"], check=True)
 
     def create_keyfile(self) -> None:
-        keydir = self.key_file.parent
-        keydir.mkdir(parents=True, exist_ok=True)
+        self.key_file = Path("/etc/luks-keys") / f"{self.label}.key"
+        self.key_file.parent.mkdir(parents=True, exist_ok=True)
         self.key_file.write_bytes(secrets.token_bytes(512))
         self.key_file.chmod(0o600)
-        os.chown(path=str(self.key_file), uid=0, gid=0)
+        os.chown(path=self.key_file.as_posix(), uid=0, gid=0)
         logger.info(f"Created secure keyfile: {self.key_file}")
 
     def add_keyfile_to_luks(self) -> None:
@@ -192,10 +218,20 @@ class LuksEncryptor:
         logger.info("Mounting filesystem and creating symlink...")
         self.mount_point.mkdir(parents=True, exist_ok=True)
         subprocess.run(["mount", f"/dev/mapper/{self.crypt_name}", str(self.mount_point)], check=True)
+        os.chown(
+            path=self.mount_point.as_posix(),
+            uid=pwd.getpwnam(self.calling_user).pw_uid,
+            gid=pwd.getpwnam(self.calling_user).pw_gid
+        )
+        self.mount_point.chmod(0o755)
 
-        if self.symlink_path.exists() or self.symlink_path.is_symlink():
-            logger.info(f"Removing existing symlink: {self.symlink_path}")
-            self.symlink_path.unlink(missing_ok=True)
+        if self.symlink_path.is_symlink():
+            self.symlink_path.unlink()
+        elif self.symlink_path.exists():
+            raise SystemExit(
+                f"ERROR: {self.symlink_path} already exists and is not a symlink.\n"
+                "Please remove it manually first."
+            )
         self.symlink_path.symlink_to(self.mount_point)
         logger.info(f"Created symlink: {self.symlink_path} → {self.mount_point}")
 
@@ -209,51 +245,11 @@ class LuksEncryptor:
             f.write(fstab_line)
         logger.info("Added entry to /etc/fstab")
 
-    def create_helper_script(self) -> None:
+    def create_systemd_service(self) -> None:
         outer_uuid = subprocess.check_output(
             ["blkid", "-s", "UUID", "-o", "value", str(self.device_path)]
         ).decode().strip()
         stable_device = f"/dev/disk/by-uuid/{outer_uuid}"
-        script_content = textwrap.dedent(f"""\
-            #!/bin/sh
-            set -e
-
-            LABEL="{self.label}"
-            CRYPT_NAME="{self.crypt_name}"
-            KEYFILE="{self.key_file}"
-            MOUNT_POINT="{self.mount_point}"
-            STABLE_DEVICE="{stable_device}"
-
-            if [ "$1" = "start" ]; then
-                # Wait max 10 s for the bare-mounted drive (200 ms steps)
-                for i in $(seq 50); do
-                    if [ -b "$STABLE_DEVICE" ]; then
-                        break
-                    elif [ $i -eq 50 ]; then
-                        echo "ERROR: Device $STABLE_DEVICE did not appear within 10 seconds" >&2
-                        exit 1
-                    fi
-                    sleep 0.2
-                done
-                cryptsetup luksOpen --key-file "$KEYFILE" "$STABLE_DEVICE" "$CRYPT_NAME"
-                mount "$MOUNT_POINT"
-
-            elif [ "$1" = "stop" ]; then
-                umount "$MOUNT_POINT" || true
-                cryptsetup luksClose "$CRYPT_NAME" || true
-
-            else
-                echo "Usage: $0 start|stop" >&2
-                exit 1
-            fi
-        """)
-        self.script_file.write_text(script_content)
-        self.script_file.chmod(0o755)
-        logger.info(f"Created helper script: {self.script_file.as_posix()}")
-
-    def create_systemd_service(self) -> None:
-        self.create_helper_script()
-        script_path = self.script_file.as_posix()
 
         service_path = Path(f"/etc/systemd/system/{self.service_name}")
         service_content = textwrap.dedent(f"""\
@@ -264,8 +260,16 @@ class LuksEncryptor:
             [Service]
             Type=oneshot
             RemainAfterExit=yes
-            ExecStart={script_path} start
-            ExecStop={script_path} stop
+            TimeoutStartSec=30
+
+            ExecStart=/bin/sh -c '\\
+                cryptsetup luksOpen --key-file "{self.key_file}" \\
+                    "{stable_device}" "{self.crypt_name}" && \\
+                udevadm settle && mount "{self.mount_point}"'
+
+            ExecStop=/bin/sh -c '\\
+                umount "{self.mount_point}" || true; \\
+                cryptsetup luksClose "{self.crypt_name}" || true'
 
             [Install]
             WantedBy=multi-user.target
@@ -290,9 +294,9 @@ class LuksEncryptor:
         logger.info(f"LUKS header backup:         {self.backup_path.as_posix()}")
         logger.info(f"Mountpoint:                 {self.mount_point.as_posix()}")
         logger.info(f"Symlink in home:            {self.symlink_path.as_posix()}")
-        logger.info(f"Service script:             {self.script_file.as_posix()}")
         logger.info(f"Systemd service:            {self.label}-crypt.service (enabled)")
         logger.info("fstab entry added (noauto)")
+        logger.info(f"To mount now:\n   sudo systemctl start {self.service_name}")
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -329,19 +333,21 @@ def handle_missing_xkcdpass() -> None:
         """)
         raise SystemExit(error_message)
 
-    new_argv = [sys.executable] + sys.argv[1:]
-    new_argv.insert(1, "--no-reinstall")
-    os.execvp(sys.executable, new_argv)
+    new_args = [sys.executable, *sys.argv, "--no-reinstall"]
+    os.execvp(sys.executable, new_args)
 
 
 def main() -> None:
     args = parse_arguments()
 
-    if args.no_reinstall:
-        raise SystemExit("xkcdpass still not importable after install attempt. Install manually.")
-
-    if xpw is None:
-        handle_missing_xkcdpass()
+    if not xpw:
+        if args.no_reinstall:
+            raise SystemExit(
+                "xkcdpass still not importable after install attempt. "
+                "Install manually with: 'sudo python3 -m pip install xkcdpass'"
+            )
+        else:
+            handle_missing_xkcdpass()
 
     if os.getuid() != 0:
         raise SystemExit("ERROR: This script must be run as root (sudo python3 ...)")
@@ -350,6 +356,7 @@ def main() -> None:
 
     luks.generate_passphrase()
     luks.confirm_destruction()
+    luks.unmount_drive()
     luks.format_luks()
     luks.backup_luks_header()
 
